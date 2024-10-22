@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContentCrypt-O-Matic Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .button { background-color: #4CAF50; border: none; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; }
+        .content-box { border: 1px solid #ddd; padding: 10px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ContentCrypt-O-Matic Dashboard</h1>
+        
+        <button class="button" onclick="fetchTrends()">Fetch Trends</button>
+        <button class="button" onclick="generateIdeas()">Generate Ideas</button>
+        <button class="button" onclick="createMeme()">Create Meme</button>
+
+        <div class="content-box">
+            <h2>Trends</h2>
+            <ul id="trends-list"></ul>
+        </div>
+
+        <div class="content-box">
+            <h2>Content Ideas</h2>
+            <ul id="ideas-list"></ul>
+        </div>
+
+        <div class="content-box">
+            <h2>Generated Memes</h2>
+            <ul id="memes-list"></ul>
+        </div>
+
+        <div class="content-box">
+            <h2>Sentiment Analysis</h2>
+            <canvas id="sentimentChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        function fetchTrends() {
+            fetch('/fetch_trends', { method: 'POST' })
+                .then(response => response.json())
+                .then(trends => {
+                    const trendsList = document.getElementById('trends-list');
+                    trendsList.innerHTML = trends.map(trend => `<li>${trend}</li>`).join('');
+                });
+        }
+
+        function generateIdeas() {
+            fetch('/generate_ideas', { method: 'POST' })
+                .then(response => response.json())
+                .then(ideas => {
+                    const ideasList = document.getElementById('ideas-list');
+                    ideasList.innerHTML = ideas.map(idea => `<li>${idea}</li>`).join('');
+                    updateSentimentChart();
+                });
+        }
+
+        function createMeme() {
+            fetch('/create_meme', { method: 'POST' })
+                .then(response => response.json())
+                .then(memes => {
+                    const memesList = document.getElementById('memes-list');
+                    memesList.innerHTML = memes.map(meme => `<li>${meme}</li>`).join('');
+                });
+        }
+
+        function updateSentimentChart() {
+            const ctx = document.getElementById('sentimentChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Positive', 'Neutral', 'Negative'],
+                    datasets: [{
+                        label: 'Sentiment Score',
+                        data: [Math.random() * 10, Math.random() * 10, Math.random() * 10],
+                        backgroundColor: ['rgba(75, 192, 192, 0.2)', 'rgba(255, 206, 86, 0.2)', 'rgba(255, 99, 132, 0.2)'],
+                        borderColor: ['rgba(75, 192, 192, 1)', 'rgba(255, 206, 86, 1)', 'rgba(255, 99, 132, 1)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
