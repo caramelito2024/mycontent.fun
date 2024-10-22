@@ -1,0 +1,37 @@
+# .gitignore
+# Python virtual environment
+venv/
+env/
+.env
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# SwarmZero specific
+swarmzero-data/
+*.log
+
+# Local configuration
+*.toml
+!swarmzero_config.toml
+
+# Temporary files
+*.tmp
+.DS_Store
+
+# Project specific data
+data/
+outputs/
