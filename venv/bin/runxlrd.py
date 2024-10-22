@@ -1,4 +1,4 @@
-#!/Users/mehdi/degate/code/content-matic/venv/bin/python3.11
+#!/Users/mehdi/degate/code/mycontent.fun/venv/bin/python3.11
 # Copyright (c) 2005-2012 Stephen John Machin, Lingfo Pty Ltd
 # This script is part of the xlrd package, which is released under a
 # BSD-style licence.

@@ -1,4 +1,28 @@
 [default]
-model = "gpt-4o"
+model = "claude-3-5-sonnet-20240620"
 temperature = 0.7
 max_tokens = 1000
+enable_multi_modal = true
+
+[trend_analyzer]
+model = "claude-3-5-sonnet-20240620"
+temperature = 0.8
+max_tokens = 2000
+environment = "prod"
+enable_multi_modal = true
+
+[meme_generator]
+model = "claude-3-5-sonnet-20240620"
+temperature = 0.9
+max_tokens = 1500
+environment = "prod"
+enable_multi_modal = true
+
+[sample_prompts]
+prompts = [
+    "What are the current trending topics on Twitter?",
+    "Analyze the trend #AI and suggest meme concepts",
+    "Generate a viral meme for tech audience",
+    "What's trending in the programming community?",
+    "Create a meme about machine learning"
+]
