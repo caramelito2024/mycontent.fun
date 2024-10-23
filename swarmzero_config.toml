@@ -1,28 +1,10 @@
-[default]
-model = "claude-3-5-sonnet-20240620"
-temperature = 0.7
-max_tokens = 1000
-enable_multi_modal = true
+[llm.openai]
+api_key = "${OPENAI_API_KEY}"
+model = "gpt-4"
 
-[trend_analyzer]
-model = "claude-3-5-sonnet-20240620"
-temperature = 0.8
-max_tokens = 2000
-environment = "prod"
-enable_multi_modal = true
+[llm.anthropic]
+api_key = "${ANTHROPIC_API_KEY}"
+model = "claude-3-opus-20240229"
 
-[meme_generator]
-model = "claude-3-5-sonnet-20240620"
-temperature = 0.9
-max_tokens = 1500
-environment = "prod"
-enable_multi_modal = true
-
-[sample_prompts]
-prompts = [
-    "What are the current trending topics on Twitter?",
-    "Analyze the trend #AI and suggest meme concepts",
-    "Generate a viral meme for tech audience",
-    "What's trending in the programming community?",
-    "Create a meme about machine learning"
-]
+[agent]
+default_llm = "anthropic"

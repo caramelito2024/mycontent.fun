@@ -1,28 +1,33 @@
 # Core dependencies
-numpy>=1.23.2,<2.0.0
-pandas>=2.2.0
-PyQt5>=5.15.9
-python-dotenv>=1.0.0
+numpy>=1.26.4,<2.0.0
+pandas>=2.2.1
+PyQt5>=5.15.10
+python-dotenv>=1.0.1
 
 # AI and ML dependencies
-transformers>=4.45.2
-openai>=1.3.0
+transformers>=4.38.2
+openai>=1.12.0
 
 # Vector database
-chromadb>=0.5.13
+chromadb>=0.4.22
 
 # LLM indexing
-llama-index>=0.11.17
+llama-index>=0.10.13
 
 # SwarmZero
 swarmzero==0.0.1
 
 # Async support
-aiohttp>=3.8.0
+aiohttp>=3.9.3
 asyncio>=3.4.3
-nest-asyncio>=1.5.8
+nest-asyncio>=1.5.9
 
 # Utilities
-tqdm>=4.65.0
-requests>=2.28.0
+tqdm>=4.66.2
+requests>=2.31.0
 python-dateutil>=2.8.2
+qasync==0.27.1
+
+
+# livepeer
+livepeer-ai==0.5.2
