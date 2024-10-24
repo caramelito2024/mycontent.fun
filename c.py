@@ -80,6 +80,11 @@ class TrendAnalyzer:
 
 class MemeGenerator:
     def __init__(self, sdk_context):
+        self.models = {
+            "ByteDance/SDXL-Lightning": "ByteDance/SDXL-Lightning",
+            "SG161222/RealVisXL_V4.0_Lightning": "SG161222/RealVisXL_V4.0_Lightning",
+        }
+        self.selected_model = list(self.models.values())[0]
         self.agent = Agent(
             name="Meme Creator",
             functions=[],
@@ -89,17 +94,24 @@ class MemeGenerator:
         )
         self.livepeer_client = livepeer.Livepeer(api_key=LIVEPEER_API_KEY)
 
+    def set_model(self, model_name):
+        if model_name in self.models.values():
+            self.selected_model = model_name
+
     async def generate_meme(self, trend_data, analysis):
         try:
             # Generate an image prompt based on the trend data and analysis
             prompt = f"Generate a meme about {trend_data['topic']} with a {analysis} sentiment."
+
+            # Use the selected model for image generation
+            model_id = self.selected_model
 
             # Make the API request to generate the image
             response = requests.post(
                 "https://dream-gateway.livepeer.cloud/text-to-image",
                 headers={"Authorization": f"Bearer {LIVEPEER_API_KEY}"},
                 json={
-                    "model_id": "ByteDance/SDXL-Lightning",
+                    "model_id": model_id,
                     "prompt": prompt,
                     "height": 512,
                     "width": 512
@@ -143,6 +155,7 @@ class TrendMemeWindow(QMainWindow):
         self.api = SocialMediaAPI()
         self.swarm = ContentSwarm(sdk_context)
         self.loop = loop
+        self.generator = MemeGenerator(sdk_context)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -174,6 +187,15 @@ class TrendMemeWindow(QMainWindow):
         layout.addWidget(self._create_content_frame("Trending Topics", "trends_area"))
         layout.addWidget(self._create_content_frame("Trend Analysis", "analysis_area"))
         layout.addWidget(self._create_content_frame("Meme Concept & Image", "meme_area"))
+
+        # Add a model selection combobox
+        self.model_combo = QComboBox()
+        self.model_combo.addItems(list(self.generator.models.keys()))
+        self.model_combo.currentIndexChanged.connect(self.generator.set_model)
+        layout.addWidget(QLabel("Select Model:"))
+        layout.addWidget(self.model_combo)
+
+        layout.addStretch()
         return layout
 
     def _create_content_frame(self, title, area_name):
