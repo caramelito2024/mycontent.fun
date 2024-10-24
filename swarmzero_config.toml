@@ -1,10 +1,28 @@
-[llm.openai]
-api_key = "${OPENAI_API_KEY}"
-model = "gpt-4"
+[model]
+model = "mistral-small"  # Update the model name here
+enable_multi_modal = false
+ollama_server_url = "https://api.mistral.ai"  # Update the URL here
 
-[llm.anthropic]
-api_key = "${ANTHROPIC_API_KEY}"
-model = "claude-3-opus-20240229"
+[sample_prompts]
+prompts = [
+  "What can you help me do?",
+  "Which tools do you have access to?",
+  "What are your capabilities?"
+]
 
-[agent]
-default_llm = "anthropic"
+[environment]
+type = "dev"
+
+[timeout]
+llm = 30
+
+[target_agent_id]
+model = "mistral-small"  # Update the model name here
+timeout = 15
+environment = "dev"
+enable_multi_modal = false
+ollama_server_url = "https://api.mistral.ai"
+sample_prompts = [
+  "design a meme with the trends", 
+  "design a memecoin" 
+]

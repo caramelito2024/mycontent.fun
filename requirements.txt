@@ -6,7 +6,7 @@ python-dotenv>=1.0.1
 
 # AI and ML dependencies
 transformers>=4.38.2
-openai>=1.12.0
+mistralai>=0.3.0  # Add Mistral AI dependency
 
 # Vector database
 chromadb>=0.4.22
@@ -28,6 +28,6 @@ requests>=2.31.0
 python-dateutil>=2.8.2
 qasync==0.27.1
 
-
 # livepeer
 livepeer-ai==0.5.2
+livepeer==0.5.2
