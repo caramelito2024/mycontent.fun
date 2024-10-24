@@ -1,6 +1,8 @@
 import sys
+import httpx
 import os
 import asyncio
+import requests
 import qasync
 import livepeer
 from datetime import datetime
@@ -16,7 +18,6 @@ from swarmzero.swarm import Swarm
 from livepeer.models import components
 import logging
 from mistralai import Mistral
-import requests
 
 
 # Load environment variables and validate them
@@ -25,6 +26,7 @@ load_dotenv()
 # API Configuration
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 LIVEPEER_API_KEY = os.getenv("LIVEPEER_API_KEY")
+COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY")
 
 for key_name, key_value in [("MISTRAL_API_KEY", MISTRAL_API_KEY),
                             ("LIVEPEER_API_KEY", LIVEPEER_API_KEY)]:
@@ -40,15 +42,39 @@ logger = logging.getLogger(__name__)
 
 client = Mistral(api_key=MISTRAL_API_KEY)
 
+class ContentSwarm:
+    """A class that leverages multiple agents in a swarm."""
+    def __init__(self, sdk_context):
+        self.analyzer = TrendAnalyzer(sdk_context)
+        self.generator = MemeGenerator(sdk_context)
+        self.swarm = Swarm(
+            name="Research Team",
+            description="A swarm of agents collaborating on research tasks",
+            functions=[],
+            instruction="Conduct research on given topics",
+            sdk_context=sdk_context,
+            agents=[agent1, agent2, agent3]
+        )
+
+    async def process_trend(self, trend_data):
+        try:
+            logger.info(f"Processing trend: {trend_data['topic']}")
+            analysis = await self.analyzer.analyze_trend(trend_data)
+            meme = await self.generator.generate_meme(trend_data, analysis)
+            return analysis, meme
+        except Exception as e:
+            logger.error(f"Error processing trend: {e}")
+            return "Error in analysis", {"error": str(e)}
+
 class SocialMediaAPI:
     """Mock API to simulate fetching social media trends."""
     async def get_trending_topics(self, platform):
         await asyncio.sleep(1)
         trends = {
             'twitter': [
-                {'topic': 'Cryptocurrency', 'volume': '125K tweets', 'sentiment': 'positive'},
-                {'topic': 'Memecoins', 'volume': '89K tweets', 'sentiment': 'neutral'},
-                {'topic': 'Trading', 'volume': '67K tweets', 'sentiment': 'mixed'},
+                {'topic': 'Swarmzero', 'volume': '125K tweets', 'sentiment': 'positive'},
+                {'topic': 'Swarmzero', 'volume': '89K tweets', 'sentiment': 'neutral'},
+                {'topic': 'Swarmzero', 'volume': '67K tweets', 'sentiment': 'mixed'},
             ],
             'reddit': [
                 {'topic': 'Artificial Intelligence', 'upvotes': '45.2K', 'sentiment': 'positive'},
@@ -62,6 +88,17 @@ class SocialMediaAPI:
             ]
         }
         return trends.get(platform, [])
+    
+    async def get_trending_search(self):
+        url = "https://pro-api.coingecko.com/api/v3/search/trending"
+        headers = {"accept": "application/json", "x-cg-pro-api-key": COINGECKO_API_KEY}
+        params = {"limit": 2}
+        response = requests.get(url, headers=headers, params=params)
+        data = response.json()
+        if "coins" in data:
+            return [{"topic": coin["item"]["name"], "volume": f"{coin['item']['market_cap_rank']}", "sentiment": "positive", "price": coin["item"]["price_btc"], "thumb": coin["item"]["thumb"]} for coin in data["coins"]]
+        else:
+            return []
 
 class TrendAnalyzer:
     def __init__(self, sdk_context):
@@ -100,37 +137,24 @@ class MemeGenerator:
 
     async def generate_meme(self, trend_data, analysis):
         try:
-            # Generate an image prompt based on the trend data and analysis
             prompt = f"Generate a meme about {trend_data['topic']} with a {analysis} sentiment."
-
-            # Use the selected model for image generation
-            model_id = self.selected_model
-
-            # Make the API request to generate the image
-            response = requests.post(
-                "https://dream-gateway.livepeer.cloud/text-to-image",
-                headers={"Authorization": f"Bearer {LIVEPEER_API_KEY}"},
-                json={
-                    "model_id": model_id,
-                    "prompt": prompt,
-                    "height": 512,
-                    "width": 512
-                }
-            )
-            response.raise_for_status()  # Raise exception for HTTP errors
-
-            # Log the complete response for debugging
-            logger.info(f"Livepeer Response: {response.json()}")
-
-            # Extract the image URL
-            image_url = response.json().get("images", [{}])[0].get("url")
-
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://dream-gateway.livepeer.cloud/text-to-image",
+                    headers={"Authorization": f"Bearer {LIVEPEER_API_KEY}"},
+                    json={
+                        "model_id": self.selected_model,
+                        "prompt": prompt,
+                        "height": 512,
+                        "width": 512
+                    }
+                )
+            response.raise_for_status()
+            data = response.json()
+            image_url = data.get("images", [{}])[0].get("url")
             if not image_url:
                 raise ValueError("No image URL found in the response.")
-
-            logger.info(f"Generated Meme URL: {image_url}")
             return {"image_url": image_url}
-
         except Exception as e:
             logger.error(f"Meme generation error: {str(e)}")
             return {"error": str(e)}
@@ -250,7 +274,7 @@ class TrendMemeWindow(QMainWindow):
 
     def _create_top_controls(self):
         layout = QHBoxLayout()
-        
+
         # Platform selection
         platform_layout = QHBoxLayout()
         platform_label = QLabel("Platform:")
@@ -260,10 +284,10 @@ class TrendMemeWindow(QMainWindow):
         self.platform_combo.addItems(['twitter', 'reddit', 'tiktok'])
         platform_layout.addWidget(self.platform_combo)
         layout.addLayout(platform_layout)
-        
+
         # Add some spacing
         layout.addSpacing(20)
-        
+
         # Model selection
         model_layout = QHBoxLayout()
         model_label = QLabel("Model:")
@@ -274,16 +298,25 @@ class TrendMemeWindow(QMainWindow):
         self.model_combo.currentIndexChanged.connect(self.generator.set_model)
         model_layout.addWidget(self.model_combo)
         layout.addLayout(model_layout)
-        
+
         # Add some spacing
         layout.addSpacing(20)
-        
+
         # Fetch button
         fetch_button = QPushButton("Generate a DOPE Meme")
         fetch_button.clicked.connect(self.fetch_trends)
         fetch_button.setMinimumWidth(120)
         layout.addWidget(fetch_button)
-        
+
+        # Add some spacing
+        layout.addSpacing(20)
+
+        # Fetch trending tokens button
+        fetch_tokens_button = QPushButton("Find Trending Tokens")
+        fetch_tokens_button.clicked.connect(self.fetch_trending_tokens)
+        fetch_tokens_button.setMinimumWidth(120)
+        layout.addWidget(fetch_tokens_button)
+
         layout.addStretch()
         return layout
 
@@ -294,8 +327,9 @@ class TrendMemeWindow(QMainWindow):
 
         # Create frames with consistent styling
         layout.addWidget(self._create_content_frame("Trending Topics", "trends_area"))
-        layout.addWidget(self._create_content_frame("Trend Analysis", "analysis_area"))
-        layout.addWidget(self._create_content_frame("Meme Concept & Image", "meme_area"))
+        layout.addWidget(self._create_content_frame("Analysis by SwarmZero", "analysis_area"))
+        layout.addWidget(self._create_content_frame("Trending Tokens (@Coin)", "tokens_area"))
+        layout.addWidget(self._create_content_frame("Meme Generation Powered by Livepeer", "meme_area"))
 
         return layout
 
@@ -340,7 +374,7 @@ class TrendMemeWindow(QMainWindow):
                 return
 
             # Display trending topics
-            self.trends_area.setText("\n".join([f"{t['topic']} ({t.get('volume', '')})" for t in trends]))
+            self.trends_area.setText("\n".join([f"{t['topic']} ({t.get('volume', '')})" for t in trends if 'topic' in t]))
 
             # Process the first trend
             analysis, meme = await self.swarm.process_trend(trends[0])
@@ -360,6 +394,31 @@ class TrendMemeWindow(QMainWindow):
         except Exception as e:
             self.trends_area.setText(f"Error fetching trends: {str(e)}")
             logger.error(f"Error fetching trends: {str(e)}")
+
+    @qasync.asyncSlot()
+    async def fetch_trending_tokens(self):
+        self.tokens_area.setText("Fetching trending tokens...")
+
+        try:
+            trending_tokens = await self.api.get_trending_search()
+
+            if not trending_tokens:
+                self.tokens_area.setText("No trending tokens found.")
+                return
+
+            # Display trending tokens with unique buttons
+            tokens_layout = QVBoxLayout()
+            for token in trending_tokens:
+                token_button = QPushButton(f"{token['topic']}: {token['price']} BTC")
+                token_button.clicked.connect(lambda checked=False, token=token: self.process_token(token))
+                tokens_layout.addWidget(token_button)
+            self.tokens_area.setLayout(tokens_layout)
+
+        except Exception as e:
+            self.tokens_area.setText(f"Error fetching trending tokens: {str(e)}")
+            logger.error(f"Error fetching trending tokens: {str(e)}")
+
+
 
 def main():
     try:
