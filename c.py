@@ -157,60 +157,169 @@ class TrendMemeWindow(QMainWindow):
         self.loop = loop
         self.generator = MemeGenerator(sdk_context)
         self._setup_ui()
+        self._apply_styles()
 
     def _setup_ui(self):
         self.setWindowTitle("Trend & Meme Generator")
         self.setGeometry(100, 100, 1200, 800)
 
         layout = QVBoxLayout()
-        layout.addLayout(self._create_platform_selector())
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.addLayout(self._create_top_controls())
         layout.addLayout(self._create_content_area())
 
         central_widget = QWidget()
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
 
-    def _create_platform_selector(self):
+    def _apply_styles(self):
+        # Main window style with gradient background
+        self.setStyleSheet("""
+            QMainWindow {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                          stop:0 #2E0854, stop:1 #8B4CA8);
+            }
+            
+            QComboBox {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                          stop:0 #4A148C, stop:1 #7B1FA2);
+                color: white;
+                border: 2px solid #9C27B0;
+                border-radius: 5px;
+                padding: 5px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            
+            QComboBox:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                          stop:0 #6A1B9A, stop:1 #9C27B0);
+                border: 2px solid #CE93D8;
+            }
+            
+            QComboBox::drop-down {
+                border: none;
+                background: #9C27B0;
+                width: 30px;
+            }
+            
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                          stop:0 #9C27B0, stop:1 #E040FB);
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                          stop:0 #AB47BC, stop:1 #EA80FC);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            }
+            
+            QLabel {
+                color: white;
+                font-weight: bold;
+            }
+            
+            QFrame {
+                background: rgba(74, 20, 140, 0.5);
+                border: 2px solid #9C27B0;
+                border-radius: 10px;
+            }
+            
+            QFrame:hover {
+                border: 2px solid #CE93D8;
+                background: rgba(74, 20, 140, 0.7);
+            }
+            
+            QTextEdit {
+                background: rgba(74, 20, 140, 0.3);
+                color: white;
+                border: 1px solid #9C27B0;
+                border-radius: 5px;
+                padding: 5px;
+            }
+            
+            QTextEdit:hover {
+                border: 1px solid #CE93D8;
+            }
+        """)
+
+    def _create_top_controls(self):
         layout = QHBoxLayout()
+        
+        # Platform selection
+        platform_layout = QHBoxLayout()
+        platform_label = QLabel("Platform:")
+        platform_label.setStyleSheet("font-size: 14px;")
+        platform_layout.addWidget(platform_label)
         self.platform_combo = QComboBox()
         self.platform_combo.addItems(['twitter', 'reddit', 'tiktok'])
-        fetch_button = QPushButton("Fetch Trends")
+        platform_layout.addWidget(self.platform_combo)
+        layout.addLayout(platform_layout)
+        
+        # Add some spacing
+        layout.addSpacing(20)
+        
+        # Model selection
+        model_layout = QHBoxLayout()
+        model_label = QLabel("Model:")
+        model_label.setStyleSheet("font-size: 14px;")
+        model_layout.addWidget(model_label)
+        self.model_combo = QComboBox()
+        self.model_combo.addItems(list(self.generator.models.keys()))
+        self.model_combo.currentIndexChanged.connect(self.generator.set_model)
+        model_layout.addWidget(self.model_combo)
+        layout.addLayout(model_layout)
+        
+        # Add some spacing
+        layout.addSpacing(20)
+        
+        # Fetch button
+        fetch_button = QPushButton("Generate a DOPE Meme")
         fetch_button.clicked.connect(self.fetch_trends)
-        layout.addWidget(QLabel("Platform:"))
-        layout.addWidget(self.platform_combo)
+        fetch_button.setMinimumWidth(120)
         layout.addWidget(fetch_button)
+        
         layout.addStretch()
         return layout
 
     def _create_content_area(self):
         layout = QHBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(20)
+
+        # Create frames with consistent styling
         layout.addWidget(self._create_content_frame("Trending Topics", "trends_area"))
         layout.addWidget(self._create_content_frame("Trend Analysis", "analysis_area"))
         layout.addWidget(self._create_content_frame("Meme Concept & Image", "meme_area"))
 
-        # Add a model selection combobox
-        self.model_combo = QComboBox()
-        self.model_combo.addItems(list(self.generator.models.keys()))
-        self.model_combo.currentIndexChanged.connect(self.generator.set_model)
-        layout.addWidget(QLabel("Select Model:"))
-        layout.addWidget(self.model_combo)
-
-        layout.addStretch()
         return layout
 
     def _create_content_frame(self, title, area_name):
         frame = QFrame()
         frame.setFrameStyle(QFrame.StyledPanel)
         layout = QVBoxLayout(frame)
-        layout.addWidget(QLabel(title, font=QFont("Arial", 12, QFont.Bold)))
+        
+        # Create title label with enhanced styling
+        title_label = QLabel(title)
+        title_label.setStyleSheet("""
+            font-family: Arial;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            padding: 5px;
+        """)
+        layout.addWidget(title_label)
 
         if area_name == "meme_area":
-            # Use QLabel for clickable links in the meme area
             content_area = QLabel()
             content_area.setTextInteractionFlags(Qt.TextBrowserInteraction)
             content_area.setOpenExternalLinks(True)
         else:
-            # Use QTextEdit for other areas
             content_area = QTextEdit()
             content_area.setReadOnly(True)
 
