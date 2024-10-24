@@ -45,6 +45,25 @@ client = Mistral(api_key=MISTRAL_API_KEY)
 class ContentSwarm:
     """A class that leverages multiple agents in a swarm."""
     def __init__(self, sdk_context):
+         # Define agents for the swarm
+        agent1 = Agent(
+            name="Research Agent", 
+            instruction="Conduct research on given topics.", 
+            sdk_context=sdk_context,
+            functions=[lambda: "search_on_web"]
+        )
+        agent2 = Agent(
+            name="Analysis Agent", 
+            instruction="Analyze collected data and generate insights.", 
+            sdk_context=sdk_context,
+            functions=[lambda: "save_item_to_csv"]
+        )
+        agent3 = Agent(
+            name="Meme Agent", 
+            instruction="Suggest a meme idea based on the insights.", 
+            sdk_context=sdk_context,
+            functions=[]
+        )
         self.analyzer = TrendAnalyzer(sdk_context)
         self.generator = MemeGenerator(sdk_context)
         self.swarm = Swarm(
@@ -317,6 +336,11 @@ class TrendMemeWindow(QMainWindow):
         fetch_tokens_button.setMinimumWidth(120)
         layout.addWidget(fetch_tokens_button)
 
+         # Add swarm execution button
+        swarm_button = QPushButton("Run Swarm Execution")
+        swarm_button.clicked.connect(self.run_swarm_execution)
+        layout.addWidget(swarm_button)
+
         layout.addStretch()
         return layout
 
@@ -417,6 +441,42 @@ class TrendMemeWindow(QMainWindow):
         except Exception as e:
             self.tokens_area.setText(f"Error fetching trending tokens: {str(e)}")
             logger.error(f"Error fetching trending tokens: {str(e)}")
+
+    @qasync.asyncSlot()
+    async def run_swarm_execution(self):
+        self.analysis_area.setText("Running swarm execution...")
+
+        try:
+            # Fetch the selected platform's first trend
+            platform = self.platform_combo.currentText().lower()
+            trends = await self.api.get_trending_topics(platform)
+
+            if not trends:
+                self.analysis_area.setText(f"No trends found on {platform}.")
+                return
+
+            # Use the first trend to run swarm analysis
+            trend_data = trends[0]
+            self.trends_area.setText(f"Using trend: {trend_data['topic']}")
+
+            # Execute swarm with the trend data
+            analysis, meme = await self.swarm.process_trend(trend_data)
+
+            # Display swarm results in the analysis area
+            self.analysis_area.setText(f"Swarm Analysis:\n{analysis}")
+
+            # Check if meme generation was successful
+            if "image_url" in meme:
+                image_url = meme["image_url"]
+                self.meme_area.setText(f"Image: <a href='{image_url}'>{image_url}</a>")
+                self.meme_area.setOpenExternalLinks(True)  # Enable clickable links
+            else:
+                error = meme.get("error", "Image not available.")
+                self.meme_area.setText(f"Error: {error}")
+
+        except Exception as e:
+            logger.error(f"Error running swarm execution: {str(e)}")
+            self.analysis_area.setText(f"Error: {str(e)}")
 
 
 
