@@ -91,9 +91,9 @@ class SocialMediaAPI:
         await asyncio.sleep(1)
         trends = {
             'twitter': [
-                {'topic': 'Bitcoin', 'volume': '125K tweets', 'sentiment': 'positive'},
-                {'topic': 'Pump', 'volume': '89K tweets', 'sentiment': 'neutral'},
-                {'topic': 'Dump', 'volume': '67K tweets', 'sentiment': 'mixed'},
+                {'topic': 'Swarmzero', 'volume': '125K tweets', 'sentiment': 'positive'},
+                {'topic': 'Swarmzero', 'volume': '89K tweets', 'sentiment': 'neutral'},
+                {'topic': 'Swarmzero', 'volume': '67K tweets', 'sentiment': 'mixed'},
             ],
             'reddit': [
                 {'topic': 'Artificial Intelligence', 'upvotes': '45.2K', 'sentiment': 'positive'},
