@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QTextEdit, QPushButton, QLabel, QHBoxLayout,
                              QFrame, QComboBox)
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QPixmap
 from swarmzero import Agent
 from swarmzero.sdk_context import SDKContext
 from swarmzero.swarm import Swarm
@@ -91,9 +91,9 @@ class SocialMediaAPI:
         await asyncio.sleep(1)
         trends = {
             'twitter': [
-                {'topic': 'Swarmzero', 'volume': '125K tweets', 'sentiment': 'positive'},
-                {'topic': 'Swarmzero', 'volume': '89K tweets', 'sentiment': 'neutral'},
-                {'topic': 'Swarmzero', 'volume': '67K tweets', 'sentiment': 'mixed'},
+                {'topic': 'Bitcoin', 'volume': '125K tweets', 'sentiment': 'positive'},
+                {'topic': 'Pump', 'volume': '89K tweets', 'sentiment': 'neutral'},
+                {'topic': 'Dump', 'volume': '67K tweets', 'sentiment': 'mixed'},
             ],
             'reddit': [
                 {'topic': 'Artificial Intelligence', 'upvotes': '45.2K', 'sentiment': 'positive'},
@@ -409,8 +409,10 @@ class TrendMemeWindow(QMainWindow):
             # Check if meme generation was successful
             if "image_url" in meme:
                 image_url = meme["image_url"]
-                self.meme_area.setText(f"Image: <a href='{image_url}'>{image_url}</a>")
-                self.meme_area.setOpenExternalLinks(True)  # Enable clickable links
+                image_data = requests.get(image_url).content
+                pixmap = QPixmap()
+                pixmap.loadFromData(image_data)
+                self.meme_area.setPixmap(pixmap)
             else:
                 error = meme.get("error", "Image not available.")
                 self.meme_area.setText(f"Error: {error}")
