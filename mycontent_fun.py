@@ -43,47 +43,227 @@ logger = logging.getLogger(__name__)
 client = Mistral(api_key=MISTRAL_API_KEY)
 
 class ContentSwarm:
-    """A class that leverages multiple agents in a swarm."""
     def __init__(self, sdk_context):
-         # Define agents for the swarm
-        agent1 = Agent(
-            name="Research Agent", 
-            instruction="Conduct research on given topics.", 
-            sdk_context=sdk_context,
-            functions=[lambda: "search_on_web"]
-        )
-        agent2 = Agent(
-            name="Analysis Agent", 
-            instruction="Analyze collected data and generate insights.", 
-            sdk_context=sdk_context,
-            functions=[lambda: "save_item_to_csv"]
-        )
-        agent3 = Agent(
-            name="Meme Agent", 
-            instruction="Suggest a meme idea based on the insights.", 
-            sdk_context=sdk_context,
-            functions=[]
-        )
         self.analyzer = TrendAnalyzer(sdk_context)
         self.generator = MemeGenerator(sdk_context)
-        self.swarm = Swarm(
-            name="Research Team",
-            description="A swarm of agents collaborating on research tasks",
-            functions=[],
-            instruction="Conduct research on given topics",
+        self.sdk_context = sdk_context
+
+        # Initialize the agents
+        self.data_collection_agent = Agent(
+            name="Data Collection Agent",
+            instruction="Collect price data on given tokens from various sources.",
             sdk_context=sdk_context,
-            agents=[agent1, agent2, agent3]
+            functions=[self.fetch_price_data_from_api]
+        )
+        
+        self.analysis_agent = Agent(
+            name="Data Analysis Agent",
+            instruction="Analyze collected price data and generate insights.",
+            sdk_context=sdk_context,
+            functions=[self.analyze_price_data]
+        )
+        
+        self.strategy_agent = Agent(
+            name="Grid Strategy Agent",
+            instruction="Propose a grid strategy based on the price analysis.",
+            sdk_context=sdk_context,
+            functions=[self.propose_grid_strategy_internal]
         )
 
+        # Create the swarm
+        self.swarm = Swarm(
+            name="Trading Team",
+            description="A swarm of agents collaborating on proposing grid strategies based on token prices",
+            instruction="Collaborate on proposing grid strategies based on token prices",
+            sdk_context=sdk_context,
+            functions=[],
+            agents=[self.data_collection_agent, self.analysis_agent, self.strategy_agent]
+        )
+
+    async def fetch_price_data_from_api(self, token_data):
+        try:
+            # Extract price data safely with fallbacks
+            price = 0.0
+            if isinstance(token_data, dict):
+                if 'price' in token_data:
+                    price = float(token_data['price'])
+                elif 'data' in token_data and 'price' in token_data['data']:
+                    price = float(token_data['data']['price'])
+                
+            return {
+                "token": token_data.get("topic", "Unknown Token"),
+                "price": price,
+                "timestamp": datetime.now().isoformat(),
+                "market_cap_rank": token_data.get("volume", "N/A"),
+                "sentiment": token_data.get("sentiment", "neutral")
+            }
+        except Exception as e:
+            logger.error(f"Error fetching price data: {str(e)}")
+            return None
+        
     async def process_trend(self, trend_data):
+        """Process trend data and generate meme"""
         try:
             logger.info(f"Processing trend: {trend_data['topic']}")
+            
+            # Get trend analysis
             analysis = await self.analyzer.analyze_trend(trend_data)
-            meme = await self.generator.generate_meme(trend_data, analysis)
-            return analysis, meme
+            if isinstance(analysis, str):
+                analysis_text = analysis
+            else:
+                analysis_text = await self.process_response(analysis)
+            
+            logger.info(f"Generated analysis: {analysis_text}")
+            
+            # Generate meme based on trend and analysis
+            meme = await self.generator.generate_meme(trend_data, analysis_text)
+            
+            return analysis_text, meme
+            
         except Exception as e:
-            logger.error(f"Error processing trend: {e}")
+            error_msg = f"Error processing trend: {str(e)}"
+            logger.error(error_msg)
             return "Error in analysis", {"error": str(e)}
+
+    async def analyze_price_data(self, price_data):
+        if not price_data:
+            return "No price data available for analysis"
+        
+        try:
+            # Safely extract data with default values
+            token = price_data.get("token", "Unknown Token")
+            price = float(price_data.get("price", 0))
+            market_cap_rank = price_data.get("market_cap_rank", "N/A")
+            
+            # Calculate metrics
+            daily_range = {
+                "high": price * 1.05,  # Estimated daily high (+5%)
+                "low": price * 0.95,   # Estimated daily low (-5%)
+                "volatility": "Medium"
+            }
+            
+            # Generate detailed analysis
+            analysis = (
+                f"Analysis for {token}:\n"
+                f"Current price: ${price:.6f}\n"
+                f"Market Cap Rank: {market_cap_rank}\n"
+                f"Estimated daily range: ${daily_range['low']:.6f} - ${daily_range['high']:.6f}\n"
+                f"Volatility: {daily_range['volatility']}\n"
+                f"Timestamp: {price_data.get('timestamp', 'N/A')}"
+            )
+            return analysis
+        except Exception as e:
+            logger.error(f"Error analyzing price data: {str(e)}")
+            return f"Error in price analysis: {str(e)}"
+
+    async def propose_grid_strategy_internal(self, analysis):
+        try:
+            # Extract current price from analysis safely
+            if "Current price: $" not in analysis:
+                return "Unable to determine current price from analysis"
+                
+            try:
+                price_str = analysis.split("Current price: $")[1].split("\n")[0]
+                current_price = float(price_str)
+            except (IndexError, ValueError) as e:
+                logger.error(f"Error parsing price: {str(e)}")
+                return "Error parsing price from analysis"
+            
+            # Calculate grid levels with safeguards
+            grid_levels = 5
+            price_range = 0.1  # 10% above and below current price
+            
+            if current_price <= 0:
+                return "Invalid price: must be greater than 0"
+            
+            upper_bound = current_price * (1 + price_range)
+            lower_bound = current_price * (1 - price_range)
+            grid_spacing = (upper_bound - lower_bound) / max(1, grid_levels - 1)
+            
+            # Generate grid levels
+            grid_prices = [lower_bound + i * grid_spacing for i in range(grid_levels)]
+            
+            # Format strategy output
+            strategy = [
+                "Grid Trading Strategy:",
+                f"Number of grids: {grid_levels}",
+                f"Upper bound: ${upper_bound:.6f}",
+                f"Lower bound: ${lower_bound:.6f}",
+                f"Grid spacing: ${grid_spacing:.6f}\n",
+                "Grid Levels:"
+            ]
+            
+            for i, price in enumerate(grid_prices, 1):
+                strategy.append(f"Level {i}: ${price:.6f}")
+                
+            return "\n".join(strategy)
+            
+        except Exception as e:
+            logger.error(f"Error proposing grid strategy: {str(e)}")
+            return f"Error in strategy generation: {str(e)}"
+    async def process_response(self, response):
+        """Helper method to process responses whether they're streams, strings, or other types"""
+        try:
+            if response is None:
+                return "No response received"
+                
+            if isinstance(response, str):
+                return response
+                
+            if hasattr(response, 'read'):
+                return await response.read()
+                
+            if hasattr(response, '__aiter__'):
+                full_response = ""
+                async for chunk in response:
+                    if isinstance(chunk, str):
+                        full_response += chunk
+                    elif hasattr(chunk, 'content'):
+                        full_response += chunk.content
+                return full_response.strip()
+                
+            if hasattr(response, 'content'):
+                return response.content
+                
+            return str(response)
+            
+        except Exception as e:
+            logger.error(f"Error processing response: {str(e)}")
+            return f"Error processing response: {str(e)}"
+
+    async def propose_grid_strategy(self, token_data):
+        try:
+            # Log the incoming token data
+            logger.info(f"Processing token data: {token_data}")
+            
+            # Collect price data
+            price_data = await self.fetch_price_data_from_api(token_data)
+            if not price_data:
+                return "Failed to fetch price data", "Unable to generate strategy"
+
+            logger.info(f"Fetched price data: {price_data}")
+
+            # Get analysis
+            analysis_response = await self.analysis_agent.chat(
+                f"Analyze price data for {token_data.get('topic', 'Unknown Token')}"
+            )
+            analysis = await self.process_response(analysis_response)
+            
+            logger.info(f"Generated analysis: {analysis}")
+
+            # Get strategy
+            strategy_response = await self.strategy_agent.chat(
+                f"Generate grid strategy based on analysis: {analysis}"
+            )
+            strategy = await self.process_response(strategy_response)
+            
+            logger.info(f"Generated strategy: {strategy}")
+
+            return analysis, strategy
+
+        except Exception as e:
+            logger.error(f"Error in propose_grid_strategy: {str(e)}")
+            return f"Error in analysis: {str(e)}", "Unable to generate strategy"
 
 class SocialMediaAPI:
     """Mock API to simulate fetching social media trends."""
@@ -91,9 +271,9 @@ class SocialMediaAPI:
         await asyncio.sleep(1)
         trends = {
             'twitter': [
-                {'topic': 'Swarmzero', 'volume': '125K tweets', 'sentiment': 'positive'},
-                {'topic': 'Swarmzero', 'volume': '89K tweets', 'sentiment': 'neutral'},
-                {'topic': 'Swarmzero', 'volume': '67K tweets', 'sentiment': 'mixed'},
+                {'topic': 'Nature', 'volume': '125K tweets', 'sentiment': 'positive'},
+                {'topic': 'Love', 'volume': '89K tweets', 'sentiment': 'positive'},
+                {'topic': 'Space', 'volume': '67K tweets', 'sentiment': 'positive'},
             ],
             'reddit': [
                 {'topic': 'Artificial Intelligence', 'upvotes': '45.2K', 'sentiment': 'positive'},
@@ -109,14 +289,19 @@ class SocialMediaAPI:
         return trends.get(platform, [])
     
     async def get_trending_search(self):
-        url = "https://pro-api.coingecko.com/api/v3/search/trending"
-        headers = {"accept": "application/json", "x-cg-pro-api-key": COINGECKO_API_KEY}
-        params = {"limit": 2}
-        response = requests.get(url, headers=headers, params=params)
-        data = response.json()
-        if "coins" in data:
-            return [{"topic": coin["item"]["name"], "volume": f"{coin['item']['market_cap_rank']}", "sentiment": "positive", "price": coin["item"]["price_btc"], "thumb": coin["item"]["thumb"]} for coin in data["coins"]]
-        else:
+        url = "https://api.coingecko.com/api/v3/search/trending"
+        headers = {"accept": "application/json"}
+        params = {"limit": 5}  # Fetch the top 5 trending tokens
+        try:
+            response = requests.get(url, headers=headers, params=params, timeout=5)  # Add a timeout of 5 seconds
+            data = response.json()
+            print("Coingecko API response:", data)  # Add this line for logging
+            if "coins" in data:
+                return [{"topic": coin["item"]["name"], "volume": f"{coin['item']['market_cap_rank']}", "sentiment": "positive", "price": coin["item"]["data"]["price"], "thumb": coin["item"]["thumb"]} for coin in data["coins"]]
+            else:
+                return []
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching trending tokens: {str(e)}")
             return []
 
 class TrendAnalyzer:
@@ -150,13 +335,51 @@ class MemeGenerator:
         )
         self.livepeer_client = livepeer.Livepeer(api_key=LIVEPEER_API_KEY)
 
-    def set_model(self, model_name):
-        if model_name in self.models.values():
-            self.selected_model = model_name
+         # Meme style templates
+        self.meme_styles = {
+            "funny": "Create a humorous meme with witty text overlay, vibrant colors, and clear focal point.",
+            "dramatic": "Design a dramatic meme with high contrast, intense emotions, and impactful visuals.",
+            "minimalist": "Generate a clean, simple meme with strong visual hierarchy and minimal elements.",
+            "retro": "Create a nostalgic meme with vintage aesthetics, classic meme format styling.",
+            "modern": "Design a contemporary meme with sleek aesthetics and trending visual elements."
+        }
+
+    def _generate_meme_prompt(self, trend_data, analysis, style="funny"):
+        """Generate an optimized prompt for meme creation"""
+        base_style = self.meme_styles.get(style, self.meme_styles["funny"])
+        
+        sentiment = trend_data.get('sentiment', 'neutral').lower()
+        topic = trend_data.get('topic', '')
+        volume = trend_data.get('volume', '')
+
+        # Enhanced prompt structure
+        prompt_elements = [
+            f"Create a high-quality meme image: {base_style}",
+            f"Main subject: {topic}",
+            "Style requirements:",
+            "- Sharp, clear image quality",
+            "- Modern meme aesthetic",
+            "- Balanced composition",
+            "- Proper lighting and contrast",
+            f"Mood/Tone: {sentiment} and engaging",
+            "Technical specifications:",
+            "- High detail in focal points",
+            "- Clean background",
+            "- Professional quality render",
+            f"Context: Trending topic with {volume} engagement",
+            f"Analysis integration: {analysis[:100] if analysis else ''}"  # Limit analysis length
+        ]
+
+        return " | ".join(prompt_elements)
 
     async def generate_meme(self, trend_data, analysis):
         try:
-            prompt = f"Generate a meme about {trend_data['topic']} with a {analysis} sentiment."
+            # Determine best style based on sentiment and topic
+            style = "funny" if trend_data.get('sentiment') == 'positive' else "dramatic"
+            
+            # Generate optimized prompt
+            prompt = self._generate_meme_prompt(trend_data, analysis, style)
+            
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     "https://dream-gateway.livepeer.cloud/text-to-image",
@@ -165,32 +388,37 @@ class MemeGenerator:
                         "model_id": self.selected_model,
                         "prompt": prompt,
                         "height": 512,
-                        "width": 512
+                        "width": 512,
+                        "num_inference_steps": 30,  # Increased for better quality
+                        "guidance_scale": 7.5,      # Balanced guidance
+                        "negative_prompt": "blurry, low quality, distorted, bad composition, poor lighting, unprofessional"
                     }
                 )
+                
             response.raise_for_status()
             data = response.json()
             image_url = data.get("images", [{}])[0].get("url")
+            
             if not image_url:
                 raise ValueError("No image URL found in the response.")
-            return {"image_url": image_url}
+                
+            return {
+                "image_url": image_url,
+                "prompt_used": prompt,  # For debugging
+                "style_used": style     # For debugging
+            }
+            
         except Exception as e:
             logger.error(f"Meme generation error: {str(e)}")
             return {"error": str(e)}
+
+    def set_model(self, model_name):
+        if model_name in self.models.values():
+            self.selected_model = model_name
             
     def _extract_image_prompt(self, concept):
         parts = concept.split("Visual Description:")
         return parts[1].strip() if len(parts) > 1 else concept
-
-class ContentSwarm:
-    def __init__(self, sdk_context):
-        self.analyzer = TrendAnalyzer(sdk_context)
-        self.generator = MemeGenerator(sdk_context)
-
-    async def process_trend(self, trend_data):
-        analysis = await self.analyzer.analyze_trend(trend_data)
-        meme = await self.generator.generate_meme(trend_data, analysis)
-        return analysis, meme
 
 class TrendMemeWindow(QMainWindow):
     def __init__(self, loop):
@@ -220,12 +448,12 @@ class TrendMemeWindow(QMainWindow):
         self.setStyleSheet("""
             QMainWindow {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                          stop:0 #2E0854, stop:1 #8B4CA8);
+                                        stop:0 #2E0854, stop:1 #8B4CA8);
             }
-            
+
             QComboBox {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                          stop:0 #4A148C, stop:1 #7B1FA2);
+                                        stop:0 #4A148C, stop:1 #7B1FA2);
                 color: white;
                 border: 2px solid #9C27B0;
                 border-radius: 5px;
@@ -233,51 +461,50 @@ class TrendMemeWindow(QMainWindow):
                 min-width: 100px;
                 font-weight: bold;
             }
-            
+
             QComboBox:hover {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                          stop:0 #6A1B9A, stop:1 #9C27B0);
+                                        stop:0 #6A1B9A, stop:1 #9C27B0);
                 border: 2px solid #CE93D8;
             }
-            
+
             QComboBox::drop-down {
                 border: none;
                 background: #9C27B0;
                 width: 30px;
             }
-            
+
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                          stop:0 #9C27B0, stop:1 #E040FB);
+                                        stop:0 #9C27B0, stop:1 #E040FB);
                 color: white;
                 border: none;
                 border-radius: 5px;
                 padding: 8px 15px;
                 font-weight: bold;
             }
-            
+
             QPushButton:hover {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                          stop:0 #AB47BC, stop:1 #EA80FC);
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                                        stop:0 #AB47BC, stop:1 #EA80FC);
             }
-            
+
             QLabel {
                 color: white;
                 font-weight: bold;
             }
-            
+
             QFrame {
                 background: rgba(74, 20, 140, 0.5);
                 border: 2px solid #9C27B0;
                 border-radius: 10px;
             }
-            
+
             QFrame:hover {
                 border: 2px solid #CE93D8;
                 background: rgba(74, 20, 140, 0.7);
             }
-            
+
             QTextEdit {
                 background: rgba(74, 20, 140, 0.3);
                 color: white;
@@ -285,7 +512,7 @@ class TrendMemeWindow(QMainWindow):
                 border-radius: 5px;
                 padding: 5px;
             }
-            
+
             QTextEdit:hover {
                 border: 1px solid #CE93D8;
             }
@@ -304,7 +531,7 @@ class TrendMemeWindow(QMainWindow):
         platform_layout.addWidget(self.platform_combo)
         layout.addLayout(platform_layout)
 
-        # Add some spacing
+        # Add spacing
         layout.addSpacing(20)
 
         # Model selection
@@ -318,7 +545,7 @@ class TrendMemeWindow(QMainWindow):
         model_layout.addWidget(self.model_combo)
         layout.addLayout(model_layout)
 
-        # Add some spacing
+        # Add spacing
         layout.addSpacing(20)
 
         # Fetch button
@@ -327,7 +554,7 @@ class TrendMemeWindow(QMainWindow):
         fetch_button.setMinimumWidth(120)
         layout.addWidget(fetch_button)
 
-        # Add some spacing
+        # Add spacing
         layout.addSpacing(20)
 
         # Fetch trending tokens button
@@ -336,10 +563,32 @@ class TrendMemeWindow(QMainWindow):
         fetch_tokens_button.setMinimumWidth(120)
         layout.addWidget(fetch_tokens_button)
 
-         # Add swarm execution button
-        swarm_button = QPushButton("Run Swarm Execution")
-        swarm_button.clicked.connect(self.run_swarm_execution)
-        layout.addWidget(swarm_button)
+        # Trading Advice button (disabled with hover text)
+        trading_advice_container = QWidget()
+        trading_advice_layout = QHBoxLayout(trading_advice_container)
+        trading_advice_layout.setContentsMargins(0, 0, 0, 0)
+        
+        trading_advice_button = QPushButton("Trading Advice")
+        trading_advice_button.setEnabled(False)  # Disable the button
+        trading_advice_button.setToolTip("Coming Soon!")  # Add hover text
+        trading_advice_button.setStyleSheet("""
+            QPushButton:disabled {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                        stop:0 #666666, stop:1 #888888);
+                color: #CCCCCC;
+            }
+        """)
+        
+        coming_soon_label = QLabel("(Coming Soon!)")
+        coming_soon_label.setStyleSheet("""
+            color: #FFD700;
+            font-style: italic;
+            padding-left: 5px;
+        """)
+        
+        trading_advice_layout.addWidget(trading_advice_button)
+        trading_advice_layout.addWidget(coming_soon_label)
+        layout.addWidget(trading_advice_container)
 
         layout.addStretch()
         return layout
@@ -351,9 +600,10 @@ class TrendMemeWindow(QMainWindow):
 
         # Create frames with consistent styling
         layout.addWidget(self._create_content_frame("Trending Topics", "trends_area"))
-        layout.addWidget(self._create_content_frame("Analysis by SwarmZero", "analysis_area"))
-        layout.addWidget(self._create_content_frame("Trending Tokens (@Coin)", "tokens_area"))
-        layout.addWidget(self._create_content_frame("Meme Generation Powered by Livepeer", "meme_area"))
+        layout.addWidget(self._create_content_frame("Meme Analysis", "analysis_area"))
+        layout.addWidget(self._create_content_frame("Trending Tokens", "tokens_area"))
+        layout.addWidget(self._create_content_frame("Trading Advice for Grid Strategy (SWARM)", "swarm_strategy_area"))
+        layout.addWidget(self._create_content_frame("Meme Generation", "meme_area"))
 
         return layout
 
@@ -423,7 +673,6 @@ class TrendMemeWindow(QMainWindow):
 
     @qasync.asyncSlot()
     async def fetch_trending_tokens(self):
-        self.tokens_area.setText("Fetching trending tokens...")
 
         try:
             trending_tokens = await self.api.get_trending_search()
@@ -432,10 +681,13 @@ class TrendMemeWindow(QMainWindow):
                 self.tokens_area.setText("No trending tokens found.")
                 return
 
-            # Display trending tokens with unique buttons
+            # Display the top 5 trending tokens with unique buttons
             tokens_layout = QVBoxLayout()
-            for token in trending_tokens:
-                token_button = QPushButton(f"{token['topic']}: {token['price']} BTC")
+            for token in trending_tokens[:5]:  # Display only the top 5 tokens
+                price = token.get('price', 'N/A')  # Get the price if available, otherwise use 'N/A'
+                if price != 'N/A':
+                    price = round(price, 3)  # Round the price to 3 decimal places
+                token_button = QPushButton(f"{token['topic']}: ${price}")
                 token_button.clicked.connect(lambda checked=False, token=token: self.process_token(token))
                 tokens_layout.addWidget(token_button)
             self.tokens_area.setLayout(tokens_layout)
@@ -449,37 +701,26 @@ class TrendMemeWindow(QMainWindow):
         self.analysis_area.setText("Running swarm execution...")
 
         try:
-            # Fetch the selected platform's first trend
-            platform = self.platform_combo.currentText().lower()
-            trends = await self.api.get_trending_topics(platform)
+            # Fetch the trending tokens
+            trending_tokens = await self.api.get_trending_search()
 
-            if not trends:
-                self.analysis_area.setText(f"No trends found on {platform}.")
+            if not trending_tokens:
+                self.analysis_area.setText("No trending tokens found.")
                 return
 
-            # Use the first trend to run swarm analysis
-            trend_data = trends[0]
-            self.trends_area.setText(f"Using trend: {trend_data['topic']}")
+            # Use the first token to run swarm analysis
+            token_data = trending_tokens[0]
+            self.tokens_area.setText(f"Using token: {token_data['topic']}")
 
-            # Execute swarm with the trend data
-            analysis, meme = await self.swarm.process_trend(trend_data)
+            # Execute swarm with the token data
+            analysis, strategy = await self.swarm.propose_grid_strategy(token_data)
 
             # Display swarm results in the analysis area
-            self.analysis_area.setText(f"Swarm Analysis:\n{analysis}")
-
-            # Check if meme generation was successful
-            if "image_url" in meme:
-                image_url = meme["image_url"]
-                self.meme_area.setText(f"Image: <a href='{image_url}'>{image_url}</a>")
-                self.meme_area.setOpenExternalLinks(True)  # Enable clickable links
-            else:
-                error = meme.get("error", "Image not available.")
-                self.meme_area.setText(f"Error: {error}")
+            self.analysis_area.setText(f"Swarm Analysis:\n{analysis}\n\nGrid Strategy:\n{strategy}")
 
         except Exception as e:
             logger.error(f"Error running swarm execution: {str(e)}")
             self.analysis_area.setText(f"Error: {str(e)}")
-
 
 
 def main():

@@ -5,9 +5,7 @@ ollama_server_url = "https://api.mistral.ai"  # Update the URL here
 
 [sample_prompts]
 prompts = [
-  "What can you help me do?",
-  "Which tools do you have access to?",
-  "What are your capabilities?"
+  "meme image with trending topics"
 ]
 
 [environment]
@@ -24,5 +22,5 @@ enable_multi_modal = false
 ollama_server_url = "https://api.mistral.ai"
 sample_prompts = [
   "design a meme with the trends", 
-  "design a memecoin" 
+  "design a meme based on the trending topics" 
 ]
