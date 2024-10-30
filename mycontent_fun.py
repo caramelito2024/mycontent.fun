@@ -9,8 +9,10 @@ from datetime import datetime
 from dotenv import load_dotenv
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QTextEdit, QPushButton, QLabel, QHBoxLayout,
-                             QFrame, QComboBox)
-from PyQt5.QtCore import Qt
+                             QFrame, QComboBox, QTabWidget, QCalendarWidget,
+                             QTimeEdit, QLineEdit, QScrollArea, QGridLayout,
+                             QSpinBox, QMenu, QToolButton)
+from PyQt5.QtCore import (Qt, QTime, QDate, QDateTime)
 from PyQt5.QtGui import QFont, QPixmap
 from swarmzero import Agent
 from swarmzero.sdk_context import SDKContext
@@ -420,6 +422,193 @@ class MemeGenerator:
         parts = concept.split("Visual Description:")
         return parts[1].strip() if len(parts) > 1 else concept
 
+class CalendarPlannerTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.events = {}  # Dictionary to store events
+        self.setup_ui()
+        self._apply_styles()
+
+    def setup_ui(self):
+        layout = QHBoxLayout()
+        
+        # Left side - Calendar and Event Input
+        left_panel = QFrame()
+        left_layout = QVBoxLayout(left_panel)
+        
+        # Calendar Widget
+        self.calendar = QCalendarWidget()
+        self.calendar.clicked.connect(self.date_selected)
+        left_layout.addWidget(self.calendar)
+        
+        # Event Input Section
+        input_frame = QFrame()
+        input_layout = QGridLayout(input_frame)
+        
+        # Event Title
+        self.event_title = QLineEdit()
+        self.event_title.setPlaceholderText("Event Title")
+        input_layout.addWidget(QLabel("Title:"), 0, 0)
+        input_layout.addWidget(self.event_title, 0, 1)
+        
+        # Event Time
+        self.event_time = QTimeEdit()
+        self.event_time.setTime(QTime.currentTime())
+        input_layout.addWidget(QLabel("Time:"), 1, 0)
+        input_layout.addWidget(self.event_time, 1, 1)
+        
+        # Event Description
+        self.event_desc = QTextEdit()
+        self.event_desc.setPlaceholderText("Event Description")
+        self.event_desc.setMaximumHeight(100)
+        input_layout.addWidget(QLabel("Description:"), 2, 0)
+        input_layout.addWidget(self.event_desc, 2, 1)
+        
+        # Add Event Button
+        self.add_event_btn = QPushButton("Add Event")
+        self.add_event_btn.clicked.connect(self.add_event)
+        input_layout.addWidget(self.add_event_btn, 3, 0, 1, 2)
+        
+        left_layout.addWidget(input_frame)
+        layout.addWidget(left_panel)
+        
+        # Right side - Event Display
+        right_panel = QFrame()
+        right_layout = QVBoxLayout(right_panel)
+        
+        # Events List Title
+        events_title = QLabel("Events")
+        events_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        right_layout.addWidget(events_title)
+        
+        # Scrollable Events Area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        self.events_widget = QWidget()
+        self.events_layout = QVBoxLayout(self.events_widget)
+        scroll_area.setWidget(self.events_widget)
+        right_layout.addWidget(scroll_area)
+        
+        layout.addWidget(right_panel)
+        self.setLayout(layout)
+
+    def _apply_styles(self):
+        self.setStyleSheet("""
+            QCalendarWidget {
+                background-color: rgba(74, 20, 140, 0.3);
+                color: white;
+            }
+            QCalendarWidget QToolButton {
+                color: white;
+                background-color: rgba(156, 39, 176, 0.7);
+                border: none;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QCalendarWidget QMenu {
+                background-color: rgba(74, 20, 140, 0.9);
+                color: white;
+            }
+            QCalendarWidget QSpinBox {
+                color: white;
+                background-color: rgba(74, 20, 140, 0.7);
+                selection-background-color: rgba(156, 39, 176, 0.7);
+            }
+            QFrame {
+                background-color: rgba(74, 20, 140, 0.3);
+                border: 1px solid rgba(156, 39, 176, 0.7);
+                border-radius: 5px;
+            }
+            QLineEdit, QTextEdit, QTimeEdit {
+                background-color: rgba(255, 255, 255, 0.1);
+                color: white;
+                border: 1px solid rgba(156, 39, 176, 0.7);
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QLabel {
+                color: white;
+            }
+            QPushButton {
+                background-color: rgba(156, 39, 176, 0.7);
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px;
+            }
+            QPushButton:hover {
+                background-color: rgba(156, 39, 176, 0.9);
+            }
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+        """)
+
+    def date_selected(self, date):
+        self.update_events_display(date)
+
+    def add_event(self):
+        date = self.calendar.selectedDate()
+        date_str = date.toString("yyyy-MM-dd")
+        
+        event = {
+            'title': self.event_title.text(),
+            'time': self.event_time.time().toString("HH:mm"),
+            'description': self.event_desc.toPlainText()
+        }
+        
+        if date_str not in self.events:
+            self.events[date_str] = []
+        
+        self.events[date_str].append(event)
+        self.update_events_display(date)
+        
+        # Clear input fields
+        self.event_title.clear()
+        self.event_desc.clear()
+        self.event_time.setTime(QTime.currentTime())
+
+    def update_events_display(self, date):
+        # Clear existing events display
+        for i in reversed(range(self.events_layout.count())): 
+            self.events_layout.itemAt(i).widget().setParent(None)
+        
+        date_str = date.toString("yyyy-MM-dd")
+        if date_str in self.events:
+            for event in self.events[date_str]:
+                event_frame = QFrame()
+                event_layout = QVBoxLayout(event_frame)
+                
+                # Event header (title and time)
+                header_layout = QHBoxLayout()
+                title_label = QLabel(f"<b>{event['title']}</b>")
+                time_label = QLabel(f"<i>{event['time']}</i>")
+                header_layout.addWidget(title_label)
+                header_layout.addWidget(time_label)
+                event_layout.addLayout(header_layout)
+                
+                # Event description
+                if event['description']:
+                    desc_label = QLabel(event['description'])
+                    desc_label.setWordWrap(True)
+                    event_layout.addWidget(desc_label)
+                
+                event_frame.setStyleSheet("""
+                    QFrame {
+                        background-color: rgba(156, 39, 176, 0.2);
+                        border: 1px solid rgba(156, 39, 176, 0.5);
+                        border-radius: 5px;
+                        margin: 2px;
+                        padding: 5px;
+                    }
+                """)
+                
+                self.events_layout.addWidget(event_frame)
+        
+        # Add stretch to push events to the top
+        self.events_layout.addStretch()
+
 class TrendMemeWindow(QMainWindow):
     def __init__(self, loop):
         super().__init__()
@@ -431,17 +620,29 @@ class TrendMemeWindow(QMainWindow):
         self._apply_styles()
 
     def _setup_ui(self):
-        self.setWindowTitle("Trend & Meme Generator")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setWindowTitle("Content Generation & Planning Suite")
+        self.setGeometry(100, 100, 1400, 900)
 
-        layout = QVBoxLayout()
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.addLayout(self._create_top_controls())
-        layout.addLayout(self._create_content_area())
-
-        central_widget = QWidget()
-        central_widget.setLayout(layout)
-        self.setCentralWidget(central_widget)
+        # Create tab widget
+        self.tab_widget = QTabWidget()
+        
+        # Create and add the main content tab
+        main_content = QWidget()
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.addLayout(self._create_top_controls())
+        main_layout.addLayout(self._create_content_area())
+        main_content.setLayout(main_layout)
+        
+        # Create and add the calendar planner tab
+        calendar_planner = CalendarPlannerTab()
+        
+        # Add tabs to the tab widget
+        self.tab_widget.addTab(main_content, "Content Generator")
+        self.tab_widget.addTab(calendar_planner, "Calendar Planner")
+        
+        # Set the tab widget as the central widget
+        self.setCentralWidget(self.tab_widget)
 
     def _apply_styles(self):
         # Main window style with gradient background
